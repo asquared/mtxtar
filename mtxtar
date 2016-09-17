@@ -1,0 +1,46 @@
+#!/bin/bash
+# mtxtar - a really simple script to tar some stuff to a whole bunch of tapes
+# this is designed to run from cron as the important arguments come in via
+# environment variables.
+# 
+# Simple example:
+# FIRST_TAPE=1 LAST_TAPE=4 mtxtar -cvf /dev/st0 -C /srv/data .
+
+CHANGER=/dev/sch0
+# ugly hack to find the sg device corresponding to the sch device
+DEVICE=`lsscsi -g | grep "$CHANGER" | perl -ne 'print $& if /\/dev\/sg\d+/'`
+
+# check input environment variables
+if [ "x${FIRST_TAPE}" == "x" ]; then
+	echo "No FIRST_TAPE!" >&2
+	exit 1
+fi
+
+if [ "x${LAST_TAPE}" == "x" ]; then
+	echo "No LAST_TAPE!" >&2
+	exit 1
+fi
+
+# try to unload the drive... we ignore failure here because all we care is
+# that the drive is empty and ready to accept the first tape
+mtx -f $DEVICE unload
+
+# now load up the first tape
+mtx -f $DEVICE load $FIRST_TAPE
+if [ $? -ne 0 ]; then
+	echo "Failed to load first tape!" >&2
+	exit 1
+fi
+
+
+# run the tar command
+# again we don't really care about the exit status but we will
+# use it as our own exit status
+tar -M --info-script=mtxtar_tapechange "$@"
+EXITSTATUS=$?
+
+# after that's done unload the drive
+mtx -f $DEVICE unload
+
+# and exit with tar's exit status
+exit $EXITSTATUS

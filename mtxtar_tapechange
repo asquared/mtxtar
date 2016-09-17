@@ -1,0 +1,43 @@
+#!/bin/bash
+
+CHANGER=/dev/sch0
+
+# check input environment variables
+if [ "x${FIRST_TAPE}" == "x" ]; then
+	echo "No FIRST_TAPE!" >&2
+	exit 1
+fi
+
+if [ "x${LAST_TAPE}" == "x" ]; then
+	echo "No LAST_TAPE!" >&2
+	exit 1
+fi
+
+if [ "x${TAR_VOLUME}" == "x" ]; then
+	echo "No TAR_VOLUME!" >&2
+	exit 1
+fi
+
+tape_index=$(($FIRST_TAPE+$TAR_VOLUME-1))
+if [ $tape_index -gt $LAST_TAPE ]; then
+	echo "Used too many tapes!" >&2
+	exit 1
+fi
+
+# ugly hack to find the sg device corresponding to the sch device
+DEVICE=`lsscsi -g | grep "$CHANGER" | perl -ne 'print $& if /\/dev\/sg\d+/'`
+
+mtx -f $DEVICE unload
+if [ $? -ne 0 ]; then
+	echo "Failed to unload tape!" >&2
+	exit 1
+fi
+
+mtx -f $DEVICE load $tape_index
+if [ $? -ne 0 ]; then
+	echo "Failed to load tape $tape_index" >&2
+	exit 1
+fi
+
+echo "Loaded tape $tape_index"
+exit 0
